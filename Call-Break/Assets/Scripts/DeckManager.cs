@@ -2,6 +2,10 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
+using UnityEngine.XR;
+using Unity.VisualScripting;
+using static SetPlayerBid;
+using UnityEngine.UI;
 
 public class DeckManager : MonoBehaviour
 {
@@ -23,9 +27,31 @@ public class DeckManager : MonoBehaviour
     private List<CardUI> playedCards = new List<CardUI>();  // List to track played cards
     private Dictionary<CardUI, int> playedCardOwners = new Dictionary<CardUI, int>(); // Map of played cards to their owners
 
-    private int drawnCount = 0;
+    //private int drawnCount = 0;
 
     private int startPlayer = 0; // New variable to track the starting player
+
+    //public GameObject cardDealPanel;
+
+    public SetPlayerBid biddingSystem;
+
+    private float bidValue = 0f;
+    private float score1 = 0f;
+    private float score2 = 0f;
+    private float score3 = 0f;
+    private float score4 = 0f;
+
+    //public Text player1Score, player2Score, player3Score, player4Score;
+    public Text[] playerScore;
+
+    public GameObject scoreBoardPanel;
+    public Text[] showPlayerTotalScore;
+
+    private Dictionary<int, int> playerBids = new Dictionary<int, int>();
+    public Text player1Bid, player2Bid, player4Bid;
+
+    private bool isGameOver = false;
+    private int[] cardsPlayedByPlayer = new int[4];
 
 
 
@@ -36,7 +62,79 @@ public class DeckManager : MonoBehaviour
         DealCards(13);  // Deal 13 cards to each player
         DisplayPlayerHands();
 
+        //StartCoroutine(RandomAutoDrawPlayer1());
+
+        // Subscribe to the BidConfirmed event from BiddingSystem
+        biddingSystem.BidConfirmed += OnBidConfirmed;
+
+        // Call the StartBidding method from the BiddingSystem when you're ready to show the bidding panel
+        biddingSystem.ShowBiddingPanel();
+
+        // Calculate and store bid values for AI players
+        for (int i = 0; i < playersHands.Count; i++)
+        {
+            if (i != 2) // Skip Player 3 (manual player)
+            {
+                int bidValue = CalculateBidValue(playersHands[i]);
+                playerBids[i] = bidValue;
+                Debug.Log($"Player {i + 1} bid: {bidValue}");
+            }
+        }
+
+        UpdateBidUI();
+    }
+
+    private int GetCardRank(CardUI card)
+    {
+        return card.rank == 1 ? 14 : card.rank; // Ace (1) becomes 14 for comparison
+    }
+
+    private void OnBidConfirmed(int bidValue)
+    {
+        Debug.Log("Bid confirmed: " + bidValue);
+
+        // Now that the bid is confirmed, proceed to deal cards or other game logic
+        //DealCards(13);
+
         StartCoroutine(RandomAutoDrawPlayer1());
+    }
+
+    private int CalculateBidValue(List<CardUI> playerHand)
+    {
+        //float bidValue = 0f;
+
+        foreach (CardUI card in playerHand)
+        {
+            //Assign bid values based on card rank
+            if (card.rank == 1 || card.rank == 13) // Ace or King
+            {
+                bidValue += 1;
+            }
+            // Add more conditions for other high-ranking cards if needed
+            //if (card.suit == "Spades" && card.rank == 14 || card.rank == 13 || card.rank == 14) // Ace or King
+            //{
+            //    bidValue += 1;
+            //}
+        }
+
+        return (int)(bidValue > 0 ? bidValue : 1);
+    }
+
+    private void UpdateBidUI()
+    {
+        // Update the UI Text elements with the calculated bid values
+        if (player1Bid != null && playerBids.ContainsKey(0))
+        {
+            player1Bid.text = $"/ {playerBids[0]}";
+        }
+        if (player2Bid != null && playerBids.ContainsKey(1))
+        {
+            player2Bid.text = $"/ {playerBids[1]}";
+        }
+        if (player4Bid != null && playerBids.ContainsKey(3))
+        {
+            player4Bid.text = $"/ {playerBids[3]}";
+        }
     }
 
     void Update()
@@ -60,10 +158,7 @@ public class DeckManager : MonoBehaviour
         }
     }
 
-    private int GetCardRank(CardUI card)
-    {
-        return card.rank == 1 ? 14 : card.rank; // Ace (1) becomes 14 for comparison
-    }
+    
 
     // Create a standard deck of 52 cards
     void CreateDeck()
@@ -121,7 +216,9 @@ public class DeckManager : MonoBehaviour
     // Display the cards in the players' hands with overlapping and shadows
     void DisplayPlayerHands()
     {
-        float overlapOffsetX = 60f;  // Horizontal overlap offset
+        float overlapOffsetX = 0f;  // Horizontal overlap offset
+
+        float overlapOffsetXForP3 = 60f;  // Horizontal overlap offset
 
         for (int i = 0; i < playersHands.Count; i++)
         {
@@ -132,8 +229,14 @@ public class DeckManager : MonoBehaviour
                 startPosition = new Vector3(-200f, 100f, 0);
             else if (i == 1) // Player 2
                 startPosition = new Vector3(-280f, 150f, 0);
-            else if (i == 2) // Player 3
+
+            // Player 3
+            else if (i == 2)
+            {
                 startPosition = new Vector3(-200f, 0f, 0);
+                offsetX = overlapOffsetXForP3;
+            } 
+                
             else // Player 4
                 startPosition = new Vector3(50f, 150f, 0);
 
@@ -214,6 +317,7 @@ public class DeckManager : MonoBehaviour
         else
         {
             CheckAndClearCenter();
+
         }
     }
 
@@ -247,17 +351,18 @@ public class DeckManager : MonoBehaviour
 
             card.transform.SetParent(centerPosition);
 
-            Vector3[] playPositions = {
-                new Vector3(0f, 1.6f, 0),
-                new Vector3(-2.5f, 0f, 0),
-                new Vector3(0f, -1.6f, 0),
-                new Vector3(2.5f, 0f, 0)
-            };
+            //Vector3[] playPositions = {
+            //    new Vector3(0f, 1.6f, 0),
+            //    new Vector3(-2.5f, 0f, 0),
+            //    new Vector3(0f, -1.6f, 0),
+            //    new Vector3(2.5f, 0f, 0)
+            //};
 
-            card.transform.localPosition = playPositions[currentPlayer];
-            card.transform.localScale = Vector3.one / 8f;
+            //card.transform.localPosition = playPositions[currentPlayer];
+            //card.transform.localScale = Vector3.one / 8f;
 
-            // Update the suit and highest rank
+            StartCoroutine(AnimateCardToCenter(card));
+
             if (currentSuit == null)
             {
                 currentSuit = card.suit;
@@ -268,13 +373,105 @@ public class DeckManager : MonoBehaviour
                 highestRank = GetCardRank(card);
             }
 
-            playedCardOwners[card] = currentPlayer; // Record the player who played the card
+            // Record the played card details
+            playedCardOwners[card] = currentPlayer;
             playedCards.Add(card);
 
-            //CheckAndClearCenter();
+            cardsPlayedByPlayer[currentPlayer]++;
 
             SwitchTurn();
+
+            // Check if all players have played all their cards
+            CheckForGameOver();
+
         }
+    }
+
+    private void CheckForGameOver()
+    {
+        // Check if all players have played 13 cards
+        bool isGameOver = true;
+        for (int i = 0; i < cardsPlayedByPlayer.Length; i++)
+        {
+            if (cardsPlayedByPlayer[i] < 13)
+            {
+                isGameOver = false;
+                break;
+            }
+        }
+
+        if (isGameOver)
+        {
+            Debug.Log("Game Over! All 13 cards have been played by each player.");
+            // You can add additional game-over logic here, such as displaying a UI message or resetting the game.
+            //scoreBoard.gameObject.SetActive(true);
+
+            //ScoreManager.SaveScores(score1, score2, score3, score4);
+
+            StartCoroutine(DealNewCard());
+        }
+    }
+
+    private IEnumerator DealNewCard()
+    {
+        yield return new WaitForSeconds(2.0f);
+
+        //scoreBoardPanel.gameObject.SetActive(true);
+
+        ShowScoreboard();
+
+        //Debug.Log("Starting new game. Dealing new cards.");
+
+        //yield return new WaitForSeconds(3.0f);
+
+        //CreateDeck();
+        //ShuffleDeck();
+        //DealCards(13);  // Deal 13 cards to each player
+        //DisplayPlayerHands();
+    }
+
+    private IEnumerator AnimateCardToCenter(CardUI card)
+    {
+        // Target position and scale
+        Vector3[] playPositions = {
+        new Vector3(0f, 1.6f, 0),
+        new Vector3(-2.5f, 0f, 0),
+        new Vector3(0f, -1.6f, 0),
+        new Vector3(2.5f, 0f, 0)
+    };
+
+        Vector3 startPosition = card.transform.position;
+        Vector3 targetPosition = centerPosition.position + playPositions[currentPlayer];
+
+        Vector3 startScale = card.transform.localScale;
+        Vector3 targetScale = Vector3.one / 8f;
+
+        float duration = 0.2f; // Time in seconds for the animation
+        float elapsedTime = 0f;
+
+        while (elapsedTime < duration)
+        {
+            elapsedTime += Time.deltaTime;
+
+            // Smoothly move and scale the card
+            card.transform.position = Vector3.Lerp(startPosition, targetPosition, elapsedTime / duration);
+            card.transform.localScale = Vector3.Lerp(startScale, targetScale, elapsedTime / duration);
+
+            yield return null;
+        }
+
+        // Ensure the final position and scale are exact
+        card.transform.position = targetPosition;
+        card.transform.localScale = targetScale;
+
+        // Parent the card to the center position
+        //card.transform.SetParent(centerPosition);
+
+        // Update the suit and highest rank
+        
+
+        // Switch turn after the animation
+        
     }
 
     bool IsValidCardForPlayer3(CardUI card)
@@ -347,20 +544,37 @@ public class DeckManager : MonoBehaviour
     public void DetermineWinner()
     {
         // Determine the round winner
-        CardUI winningCard = null;
-        int winningPlayer = -1;
-        int highestCardRank = 0;
+        CardUI chosenCard = playedCards[0]; // The first card played
+        string prioritySuit = chosenCard.suit;
 
-        // Step 2: If no card from the current suit is played, prioritize Spades
-        if (winningCard == null)
+        CardUI winningCard = chosenCard;
+        int winningPlayer = playedCardOwners[chosenCard];
+        int highestCardRank = GetCardRank(chosenCard);
+
+        // Step 1: Check cards of the priority suit
+        foreach (var card in playedCards)
+        {
+            if (card.suit == prioritySuit)
+            {
+                int cardRank = GetCardRank(card);
+                if (cardRank > highestCardRank)
+                {
+                    highestCardRank = cardRank;
+                    winningCard = card;
+                    winningPlayer = playedCardOwners[card];
+                }
+            }
+        }
+
+        // Step 2: If no card from the priority suit is played, prioritize Spades
+        if (winningCard.suit != "Spades")
         {
             foreach (var card in playedCards)
             {
                 if (card.suit == "Spades")
                 {
                     int cardRank = GetCardRank(card);
-
-                    if (winningCard == null || cardRank > highestCardRank)
+                    if (winningCard.suit != "Spades" || cardRank > highestCardRank)
                     {
                         highestCardRank = cardRank;
                         winningCard = card;
@@ -370,14 +584,13 @@ public class DeckManager : MonoBehaviour
             }
         }
 
-        // Step 3: If no Spades are played, pick the highest-ranking card regardless of suit
-        if (winningCard == null)
+        // Step 3: If no Spades are played, the highest-ranking card of the priority suit determines the winner
+        if (winningCard.suit != prioritySuit && winningCard.suit != "Spades")
         {
             foreach (var card in playedCards)
             {
                 int cardRank = GetCardRank(card);
-
-                if (winningCard == null || cardRank > highestCardRank)
+                if (cardRank > highestCardRank)
                 {
                     highestCardRank = cardRank;
                     winningCard = card;
@@ -386,20 +599,66 @@ public class DeckManager : MonoBehaviour
             }
         }
 
+        // Log the round winner
         Debug.Log("Round Winner: Player " + (winningPlayer + 1) + " with " + winningCard.suit + " " + winningCard.rank);
 
         // Update startPlayer with the winner of the round
         if (winningPlayer == 2)
         {
+            score3++;
+            playerScore[2].text = score3.ToString();
             startPlayer = 2; // Set Player 3 as the start player for the next round
             Debug.Log("Player 3 won and will start the next round.");
         }
         else
         {
             startPlayer = winningPlayer; // Set the winner as the start player
+
+            if (winningPlayer == 0)
+            {
+                score1++;
+                //player1Score.text = score1.ToString();
+                playerScore[0].text = score1.ToString();
+            }
+            else if (winningPlayer == 1)
+            {
+                score2++;
+                //player2Score.text = score2.ToString();
+                playerScore[1].text = score2.ToString();
+            }
+            else if (winningPlayer == 3)
+            {
+                score4++;
+                //player4Score.text = score4.ToString();
+                playerScore[3].text = score4.ToString();
+            }
         }
+
+        ScoreManager.SaveScores(score1, score2, score3, score4);
+
+        CheckForGameOver();
     }
 
+    private void ShowScoreboard()
+    {
+        if (scoreBoardPanel != null)
+        {
+            // Activate the scoreboard panel
+            scoreBoardPanel.SetActive(true);
+
+            // Load the saved scores
+            ScoreData scores = ScoreManager.LoadScores();
+
+            // Update the UI with the total scores
+            if (showPlayerTotalScore.Length >= 4)
+            {
+                showPlayerTotalScore[0].text = scores.player1Score.ToString();
+                showPlayerTotalScore[1].text = scores.player2Score.ToString();
+                showPlayerTotalScore[2].text = scores.player3Score.ToString();
+                showPlayerTotalScore[3].text = scores.player4Score.ToString();
+            }
+        }
+    }
 
     IEnumerator ClearCenter()
     {
@@ -435,7 +694,52 @@ public class DeckManager : MonoBehaviour
         highestRank = 0;
 
         Debug.Log($"Starting new round. Player {startPlayer + 1} starts.");
-        TriggerPlayerTurn(currentPlayer);
+        //TriggerPlayerTurn(currentPlayer);
+
+        // Let the winner play a card
+        if (currentPlayer != 2) // If the winner is not Player3 (Player3 is index 2)
+        {
+            if (playersHands[currentPlayer].Count > 0)
+            {
+                PlayRandomCardForPlayer(currentPlayer); // Automatically draw a random card
+            }
+        }
+        else
+        {
+            Debug.Log("Player 3 starts the round and will manually draw a card.");
+            // Player3 will manually draw; no action needed here
+            TriggerPlayerTurn(currentPlayer);
+        }
+    }
+
+    private void PlayRandomCardForPlayer(int player)
+    {
+        if (playersHands[player].Count > 0)
+        {
+            // Choose a random card from the player's hand
+            int randomIndex = Random.Range(0, playersHands[player].Count);
+            //CardUI randomCard = playersHands[player][randomIndex];
+
+            CardUI randomCard = null;
+
+            List<CardUI> hand = playersHands[player];
+
+            List<CardUI> aces = hand.FindAll(card => GetCardRank(card) == 14);
+
+            if (aces.Count > 0)
+            {
+                // Randomly select an Ace if multiple are available
+                randomCard = aces[Random.Range(0, aces.Count)];
+            }
+            else
+            {
+                // Step 2: If no Ace, draw any random card
+                randomCard = hand[Random.Range(0, hand.Count)];
+            }
+
+            // Play the chosen card
+            PlayCard(randomCard);
+        }
     }
 
 
